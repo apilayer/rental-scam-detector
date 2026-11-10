@@ -304,6 +304,7 @@ jobs:
     env:
       APP_ROOT: ${{ secrets.APP_ROOT }}
       APP_PORT: ${{ secrets.APP_PORT }}
+      APP_BASE_PATH: ${{ secrets.APP_BASE_PATH }}
       PM2_APP_NAME: ${{ secrets.PM2_APP_NAME }}
 
     steps:
@@ -328,6 +329,10 @@ jobs:
           instance-ids: ${{ needs.prepare.outputs.instance_ids }}
           script: |
             cd "${APP_ROOT}"
+
+            # next.config.ts reads this at startup too, so the running server
+            # must see the same base path the app was built with.
+            export NEXT_PUBLIC_BASE_PATH="${APP_BASE_PATH%/}"
 
             if pm2 describe "${PM2_APP_NAME}" >/dev/null 2>&1; then
               echo "Reloading ${PM2_APP_NAME}..."
