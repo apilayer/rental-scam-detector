@@ -97,10 +97,12 @@ jobs:
           fi
 
           INSTANCE_COUNT=$(wc -w <<< "${INSTANCE_IDS}")
-          for INSTANCE_ID in ${INSTANCE_IDS}; do
-            echo "::add-mask::${INSTANCE_ID}"
-          done
 
+          # NOTE: Do NOT ::add-mask:: the instance IDs here. GitHub drops any
+          # job output whose value contains a masked string, which would leave
+          # needs.prepare.outputs.instance_ids empty in downstream jobs.
+          # The IDs are masked inside the ssm-run action instead, and are
+          # never echoed in this job.
           echo "Found ${INSTANCE_COUNT} running EC2 instance(s)."
           echo "instance_ids=${INSTANCE_IDS}" >> "${GITHUB_OUTPUT}"
 
