@@ -1,3 +1,4 @@
+
 name: Application CI/CD
 
 on:
@@ -98,11 +99,8 @@ jobs:
 
           INSTANCE_COUNT=$(wc -w <<< "${INSTANCE_IDS}")
 
-          # NOTE: Do NOT ::add-mask:: the instance IDs here. GitHub drops any
-          # job output whose value contains a masked string, which would leave
-          # needs.prepare.outputs.instance_ids empty in downstream jobs.
-          # The IDs are masked inside the ssm-run action instead, and are
-          # never echoed in this job.
+          # Do not mask instance IDs here because GitHub suppresses
+          # job outputs containing masked values.
           echo "Found ${INSTANCE_COUNT} running EC2 instance(s)."
           echo "instance_ids=${INSTANCE_IDS}" >> "${GITHUB_OUTPUT}"
 
@@ -174,12 +172,15 @@ jobs:
 
             if ! git pull --ff-only origin "${GIT_BRANCH}" >/dev/null 2>&1; then
               echo "ERROR: git pull failed. Restoring backups..."
+
               if [[ "${NODE_MODULES_BACKUP_CREATED}" == "true" ]]; then
                 mv "${NODE_MODULES_BACKUP}" node_modules
               fi
+
               if [[ "${BUILD_BACKUP_CREATED}" == "true" ]]; then
                 mv "${BUILD_BACKUP}" .next
               fi
+
               exit 1
             fi
 
@@ -234,6 +235,7 @@ jobs:
 
     env:
       APP_ROOT: ${{ secrets.APP_ROOT }}
+      APP_BASE_PATH: ${{ secrets.APP_BASE_PATH }}
 
     steps:
       - name: Mask workflow identifiers
@@ -257,7 +259,26 @@ jobs:
           instance-ids: ${{ needs.prepare.outputs.instance_ids }}
           timeout: 1200
           script: |
+            set -euo pipefail
+
             cd "${APP_ROOT}"
+
+            if [[ -z "${APP_BASE_PATH}" ]]; then
+              echo "ERROR: APP_BASE_PATH is empty."
+              echo "Configure APP_BASE_PATH in the GitHub environment secrets."
+              exit 1
+            fi
+
+            if [[ "${APP_BASE_PATH}" != /* ]]; then
+              echo "ERROR: APP_BASE_PATH must start with /."
+              exit 1
+            fi
+
+            # Next.js basePath is compiled into the production build.
+            # Normalize trailing slashes before exporting it.
+            export NEXT_PUBLIC_BASE_PATH="${APP_BASE_PATH%/}"
+
+            echo "Building application with configured base path."
             npm run build
 
   # JOB 5: RESTART
@@ -344,12 +365,32 @@ jobs:
           phase: Health check
           instance-ids: ${{ needs.prepare.outputs.instance_ids }}
           script: |
+            set -euo pipefail
+
+            if [[ -z "${APP_BASE_PATH}" ]]; then
+              echo "ERROR: APP_BASE_PATH is empty."
+              exit 1
+            fi
+
+            HEALTH_URL="http://127.0.0.1:${APP_PORT}${APP_BASE_PATH%/}/"
+
+            echo "Checking application health."
+
             for attempt in {1..30}; do
-              if curl --fail --silent --show-error "http://127.0.0.1:${APP_PORT}${APP_BASE_PATH}" > /dev/null; then
-                echo "Health check passed."
+              HTTP_STATUS=$(curl \
+                --location \
+                --silent \
+                --show-error \
+                --output /dev/null \
+                --write-out "%{http_code}" \
+                "${HEALTH_URL}" || true)
+
+              if [[ "${HTTP_STATUS}" == "200" ]]; then
+                echo "Health check passed. HTTP ${HTTP_STATUS}"
                 exit 0
               fi
-              echo "Health check attempt ${attempt}/30 failed."
+
+              echo "Health check attempt ${attempt}/30 failed. HTTP ${HTTP_STATUS:-000}"
               sleep 2
             done
 
@@ -438,12 +479,23 @@ jobs:
 
             pm2 save
 
+            HEALTH_URL="http://127.0.0.1:${APP_PORT}${APP_BASE_PATH%/}/"
+
             for attempt in {1..30}; do
-              if curl --fail --silent --show-error "http://127.0.0.1:${APP_PORT}${APP_BASE_PATH}" > /dev/null; then
+              HTTP_STATUS=$(curl \
+                --location \
+                --silent \
+                --show-error \
+                --output /dev/null \
+                --write-out "%{http_code}" \
+                "${HEALTH_URL}" || true)
+
+              if [[ "${HTTP_STATUS}" == "200" ]]; then
                 echo "ROLLBACK SUCCESSFUL. Previous application version restored."
                 exit 0
               fi
-              echo "Rollback health check attempt ${attempt}/30 failed."
+
+              echo "Rollback health check attempt ${attempt}/30 failed. HTTP ${HTTP_STATUS:-000}"
               sleep 2
             done
 
