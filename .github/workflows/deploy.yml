@@ -1,11 +1,8 @@
 name: Application CI/CD
 
 on:
-  push:
-    branches:
-      - staging
-      - main
-
+  # Manual trigger only. Choose the branch when you click "Run workflow":
+  # main deploys to production, any other branch (e.g. staging) to staging.
   workflow_dispatch:
 
 permissions:
