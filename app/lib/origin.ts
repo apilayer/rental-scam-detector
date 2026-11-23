@@ -26,9 +26,9 @@ export type OriginInfo = {
  * send an unreachable URL and report an empty result.
  */
 export function resolveOrigin(request: NextRequest): OriginInfo {
-  // PUBLIC_ORIGIN is scheme and host only; the basePath is appended here so
+  // NEXT_PUBLIC_SITE_ORIGIN is scheme and host only; the basePath is appended here so
   // the two cannot drift apart.
-  const configured = process.env.PUBLIC_ORIGIN?.trim();
+  const configured = process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim();
   if (configured) {
     const origin = configured.replace(/\/$/, "");
     return { origin, baseUrl: origin + BASE_PATH, publiclyReachable: true, reason: null };
@@ -54,7 +54,7 @@ export function resolveOrigin(request: NextRequest): OriginInfo {
       baseUrl: `${proto}://${host}${BASE_PATH}`,
       publiclyReachable: false,
       reason:
-        "Checking uploaded photos needs a URL the search engine can reach, and this app is running on a private address. Deploy it, or set PUBLIC_ORIGIN to a tunnel URL, to use the upload option.",
+        "Checking uploaded photos needs a URL the search engine can reach, and this app is running on a private address. Deploy it, or set NEXT_PUBLIC_SITE_ORIGIN to a tunnel URL, to use the upload option.",
     };
   }
   return {

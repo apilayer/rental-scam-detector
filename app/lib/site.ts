@@ -1,9 +1,9 @@
+import { BASE_PATH } from "./basePath";
+
 /**
- * Canonical facts about this page, deliberately decoupled from routing.
- *
- * NEXT_PUBLIC_BASE_PATH says where Next serves the app from; these say what a
- * crawler should be told about it. Conflating the two either 404s local dev or
- * points the canonical at a URL nobody can reach.
+ * Canonical facts about this page: the address crawlers and share links use.
+ * Origin from NEXT_PUBLIC_SITE_ORIGIN, path from NEXT_PUBLIC_BASE_PATH. Locally the base path is empty, so the
+ * path falls back to the production one and the canonical still points at the live page.
  */
 const DEFAULT_ORIGIN = "https://apilayer.com";
 const DEFAULT_PATH = "/devtools/rental-scam-detector";
@@ -14,10 +14,7 @@ export const SITE = {
     /\/$/,
     ""
   ),
-  publicPath: (process.env.NEXT_PUBLIC_SITE_PATH ?? DEFAULT_PATH).replace(
-    /\/$/,
-    ""
-  ),
+  publicPath: BASE_PATH || DEFAULT_PATH,
   tagline: "Is this rental listing a scam?",
   description:
     "Check a rental listing before you pay a deposit. Paste the link and the tool reverse image searches every photo, then shows you where else those same pictures appear and whether the price or the address changed.",
